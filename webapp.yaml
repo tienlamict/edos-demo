@@ -1,0 +1,114 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: webapp-config
+  namespace: teastore
+data:
+  nginx.conf: |
+    worker_processes 1;
+    events { worker_connections 256; }
+    http {
+      server {
+        listen 8080;
+
+        # Trang chủ - nhẹ
+        location / {
+          default_type text/html;
+          return 200 '<html><body><h1>EDoS Demo Store</h1><p>OK</p></body></html>';
+        }
+
+        # Endpoint tốn CPU - dùng để trigger HPA scaling
+        location /buy {
+          default_type text/html;
+          content_by_lua_block {
+            -- Tiêu tốn CPU: tính toán vô nghĩa
+            local sum = 0
+            for i = 1, 50000 do
+              sum = sum + math.sqrt(i) * math.sin(i)
+            end
+            ngx.say("<html><body><h1>Order processed</h1><p>Result: " .. sum .. "</p></body></html>")
+          }
+        }
+
+        # Endpoint vừa phải
+        location /browse {
+          default_type text/html;
+          content_by_lua_block {
+            local sum = 0
+            for i = 1, 10000 do
+              sum = sum + math.sqrt(i)
+            end
+            ngx.say("<html><body><h1>Products</h1><p>Items: " .. sum .. "</p></body></html>")
+          }
+        }
+
+        # Health check
+        location /health {
+          default_type text/plain;
+          return 200 'ok';
+        }
+      }
+    }
+---
+# Deployment dùng OpenResty (Nginx + Lua) - rất nhẹ
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: webapp
+  namespace: teastore
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: webapp
+  template:
+    metadata:
+      labels:
+        app: webapp
+    spec:
+      containers:
+        - name: webapp
+          image: openresty/openresty:alpine
+          ports:
+            - containerPort: 8080
+          volumeMounts:
+            - name: config
+              mountPath: /usr/local/openresty/nginx/conf/nginx.conf
+              subPath: nginx.conf
+          resources:
+            requests:
+              cpu: 100m
+              memory: 32Mi
+            limits:
+              cpu: 250m
+              memory: 64Mi
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+      volumes:
+        - name: config
+          configMap:
+            name: webapp-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: webapp
+  namespace: teastore
+spec:
+  type: NodePort
+  selector:
+    app: webapp
+  ports:
+    - port: 8080
+      targetPort: 8080
+      nodePort: 30080

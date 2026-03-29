@@ -57,10 +57,10 @@ winget install Oracle.JDK.21
 Invoke-WebRequest -Uri "https://archive.apache.org/dist/jmeter/binaries/apache-jmeter-5.6.3.zip" -OutFile "$env:USERPROFILE\Downloads\jmeter.zip"
 
 # Giải nén
-Expand-Archive "$env:USERPROFILE\Downloads\jmeter.zip" -DestinationPath "C:\Tools"
+Expand-Archive "$env:USERPROFILE\Downloads\jmeter.zip" -DestinationPath "D:\Tools"
 
 # Thêm vào PATH (chạy trong PowerShell Admin)
-[Environment]::SetEnvironmentVariable("Path", $env:Path + ";C:\Tools\apache-jmeter-5.6.3\bin", "User")
+[Environment]::SetEnvironmentVariable("Path", $env:Path + ";D:\Tools\apache-jmeter-5.6.3\bin", "User")
 
 # Đóng và mở lại PowerShell, kiểm tra
 jmeter --version
@@ -98,7 +98,7 @@ mkdir results
 Tạo file `C:\edos-demo\kind-config.yaml`:
 
 ```powershell
-@"
+
 kind: Cluster
 apiVersion: kind.x-k8s.io/v1alpha4
 name: edos-cluster
@@ -120,7 +120,7 @@ nodes:
   - role: worker
   - role: worker
   - role: worker
-"@ | Out-File -Encoding utf8 kind-config.yaml
+
 ```
 
 ### 3.2 Tạo cluster
@@ -163,7 +163,13 @@ HPA cần Metrics Server để đọc CPU utilization.
 kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml
 
 # Patch cho Kind (Kind dùng self-signed certs)
-kubectl patch deployment metrics-server -n kube-system --type=json -p='[{"op":"add","path":"/spec/template/spec/containers/0/args/-","value":"--kubelet-insecure-tls"},{"op":"add","path":"/spec/template/spec/containers/0/args/-","value":"--kubelet-preferred-address-types=InternalIP"}]'
+Mở cmd
+
+cd project
+
+echo [{"op":"add","path":"/spec/template/spec/containers/0/args/-","value":"--kubelet-insecure-tls"},{"op":"add","path":"/spec/template/spec/containers/0/args/-","value":"--kubelet-preferred-address-types=InternalIP"}] > patch.json
+
+kubectl patch deployment metrics-server -n kube-system --type=json --patch-file=patch.json
 
 # Chờ 1-2 phút, kiểm tra
 kubectl get pods -n kube-system | findstr metrics
