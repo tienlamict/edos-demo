@@ -1,0 +1,109 @@
+# ServiceAccount voi quyen doc metrics
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: custom-metrics-adapter
+  namespace: teastore
+---
+# ClusterRole - quyen doc pods va metrics
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: custom-metrics-reader
+rules:
+  - apiGroups: [""]
+    resources: ["pods", "nodes"]
+    verbs: ["get", "list"]
+  - apiGroups: ["metrics.k8s.io"]
+    resources: ["pods", "nodes"]
+    verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: custom-metrics-reader-binding
+subjects:
+  - kind: ServiceAccount
+    name: custom-metrics-adapter
+    namespace: teastore
+roleRef:
+  kind: ClusterRole
+  name: custom-metrics-reader
+  apiGroup: rbac.authorization.k8s.io
+---
+# Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: custom-metrics-adapter
+  namespace: teastore
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: custom-metrics-adapter
+  template:
+    metadata:
+      labels:
+        app: custom-metrics-adapter
+    spec:
+      serviceAccountName: custom-metrics-adapter
+      containers:
+        - name: adapter
+          image: custom-metrics-adapter:latest
+          imagePullPolicy: Never
+          ports:
+            - containerPort: 6443
+          env:
+            - name: RANDOMIZATION_WEIGHT
+              value: "0.5"
+            - name: FAKE_LOW_VALUE
+              value: "10"
+            - name: NAMESPACE
+              value: "teastore"
+            - name: DEPLOYMENT
+              value: "webapp"
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 100m
+              memory: 128Mi
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 6443
+              scheme: HTTPS
+            initialDelaySeconds: 5
+            periodSeconds: 10
+---
+# Service cho adapter
+apiVersion: v1
+kind: Service
+metadata:
+  name: custom-metrics-adapter
+  namespace: teastore
+spec:
+  selector:
+    app: custom-metrics-adapter
+  ports:
+    - port: 443
+      targetPort: 6443
+      protocol: TCP
+---
+# Dang ky API voi Kubernetes
+# Khi HPA query custom.metrics.k8s.io -> K8s chuyen den adapter
+apiVersion: apiregistration.k8s.io/v1
+kind: APIService
+metadata:
+  name: v1beta1.custom.metrics.k8s.io
+spec:
+  service:
+    name: custom-metrics-adapter
+    namespace: teastore
+  group: custom.metrics.k8s.io
+  version: v1beta1
+  groupPriorityMinimum: 100
+  versionPriority: 100
+  insecureSkipTLSVerify: true
