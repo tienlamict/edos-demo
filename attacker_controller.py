@@ -6,7 +6,7 @@ import subprocess, requests, time, csv, os, sys
 from datetime import datetime
 
 PROMETHEUS_URL = "http://localhost:9090"
-JMETER_CMD = r"D:\Tools\apache-jmeter-5.6.3\bin\jmeter.bat"
+JMETER_CMD = "jmeter.bat"
 
 ATTACK_POWER_K = 5
 BURST_DURATION_SEC = 120
@@ -66,14 +66,15 @@ def get_cpu_percent():
 
 def start_burst():
     global attack_process, attack_active, total_bursts
-    cmd = [
-        JMETER_CMD, "-n", "-t", "attacker-burst.jmx",
-        f"-JTHREADS={ATTACK_THREADS}",
-        f"-JDURATION={BURST_DURATION_SEC}",
-        "-l", f"results\\attack-{total_bursts}.jtl"
-    ]
+    cmd = (
+        f"jmeter.bat -n -t attacker-burst.jmx"
+        f" -JTHREADS={ATTACK_THREADS}"
+        f" -JDURATION={BURST_DURATION_SEC}"
+        f" -l results\\attack-{total_bursts}.jtl"
+    )
     print(f"  >>> BURST #{total_bursts+1}: {ATTACK_THREADS} threads x {BURST_DURATION_SEC}s")
-    attack_process = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    print(f"  >>> CMD: {cmd}")
+    attack_process = subprocess.Popen(cmd, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     attack_active = True
     total_bursts += 1
 
@@ -81,9 +82,8 @@ def start_burst():
 def stop_burst():
     global attack_process, attack_active
     if attack_process and attack_process.poll() is None:
-        attack_process.terminate()
-        try: attack_process.wait(timeout=10)
-        except: attack_process.kill()
+        subprocess.run(["taskkill", "/F", "/T", "/PID", str(attack_process.pid)],
+                       capture_output=True)
     attack_active = False
     print("  <<< Burst ket thuc")
 
