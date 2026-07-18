@@ -118,6 +118,7 @@ def reporter(interval=5.0):
 
 
 def main():
+    global BASE_URL
     parser = argparse.ArgumentParser(description="Legitimate load generator (EDoS demo)")
     parser.add_argument("--url", default=BASE_URL, help="Base URL (default http://localhost:8080)")
     parser.add_argument("--threads", type=int, default=10, help="So user dong thoi (default 10)")
@@ -126,7 +127,6 @@ def main():
                         help="Trung binh req/giay moi user (default 2.0 ~ giong Poisson timer 350ms)")
     args = parser.parse_args()
 
-    global BASE_URL
     BASE_URL = args.url.rstrip("/")
     mean_interval = 1.0 / args.rate if args.rate > 0 else 0.5
 
